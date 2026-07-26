@@ -38,6 +38,53 @@ investor-sourcing collect --provider csv --data-root data/manual
 investor-sourcing screen
 ```
 
+### Manual research workflow (account-safe)
+
+```bash
+# 1. Record an employee you found while browsing a fund's people page:
+investor-sourcing add-employee --fund example-growth-partners \
+    --profile-id jane-doe-123 --name "Jane Doe" --title Principal
+
+# 2. On their profile, open Interests > Companies, select-all, copy,
+#    then paste into:
+investor-sourcing import-follows --profile-id jane-doe-123
+# (UI chrome like "Following" / "12,345 followers" is stripped automatically)
+
+# 3. Fill in hq_country on the new follows.csv rows, then:
+investor-sourcing run --provider csv --data-root data/manual
+# Companies still missing a country land in output/needs_country.csv.
+```
+
+## Keeping your LinkedIn account safe
+
+The only approach with zero ban risk is: **no automation ever touches your
+logged-in account.** This repo is built around that rule.
+
+Safe (what this tool supports):
+
+- **Browse normally, paste, import.** You open profiles yourself in your
+  own browser at human pace — ordinary LinkedIn usage. Copy the
+  "Interests → Companies" section and run `import-follows`; the parsing
+  and data entry happen locally, offline.
+- **Licensed vendor data.** A vendor's export goes through the same CSV
+  format (or a new Provider). Your account is never involved.
+
+Not safe (never wire these into this tool):
+
+- Headless browsers, bots, or scripts driving your logged-in session —
+  LinkedIn detects request patterns, not just volume.
+- Browser extensions that auto-visit or auto-scrape profiles. Many
+  "sales automation" extensions get accounts restricted.
+- Sharing your session cookie with any third-party service.
+- Even "slow" automation: one detection is enough, and restrictions often
+  hit the account, not the tool.
+
+Practical habits for the manual workflow: keep daily profile views in the
+range you'd browse anyway (LinkedIn also caps commercial-use search on
+free accounts), spread research over days rather than marathon sessions,
+and prefer Sales Navigator if you're doing heavy people-search — it's the
+product LinkedIn sells for exactly this usage.
+
 ## Data providers
 
 LinkedIn has **no official API** for the companies a member follows, and

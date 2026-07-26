@@ -1,5 +1,7 @@
 """Command-line entry point.
 
+    investor-sourcing add-employee   --fund <slug> --profile-id <id> --name <name> [--title <title>]
+    investor-sourcing import-follows --profile-id <id> [--file paste.txt]   # or paste via stdin
     investor-sourcing collect --provider csv [--data-root data/manual]
     investor-sourcing screen  [--out output/]
     investor-sourcing run     # collect + screen in one go
@@ -12,12 +14,15 @@ import logging
 import sys
 from pathlib import Path
 
-from . import config, pipeline, report
+from . import config, intake, pipeline, report
+from .models import Employee
 from .providers import get_provider
+from .screening.geography import normalize_country
 from .storage import Store
 
 DEFAULT_DB = Path("data/cache.db")
 DEFAULT_OUT = Path("output")
+DEFAULT_MANUAL_ROOT = Path("data/manual")
 
 
 def _add_common(parser: argparse.ArgumentParser) -> None:
@@ -65,6 +70,44 @@ def _do_screen(args: argparse.Namespace, store: Store) -> None:
         print(f"  {r.company.name:<35} {r.company.hq_country:<3} "
               f"followers={r.follower_count} funds={r.fund_count}")
 
+    unknown = [c for c in store.companies() if not normalize_country(c.hq_country)]
+    if unknown:
+        path = args.out / "needs_country.csv"
+        report.write_needs_country(unknown, path)
+        print(f"\nNote: {len(unknown)} cached companies have no recognizable HQ country "
+              f"and were skipped by the geography screen -> {path}")
+        print("Fill in hq_country in your follows.csv (or enrich via your data platform) "
+              "and re-run collect + screen.")
+
+
+def _do_add_employee(args: argparse.Namespace) -> None:
+    employee = Employee(
+        profile_id=args.profile_id,
+        name=args.name,
+        title=args.title or "",
+        fund_slug=args.fund,
+    )
+    intake.append_employee(args.data_root, employee)
+    print(f"Added {employee.name} ({employee.fund_slug}) to {args.data_root / 'employees.csv'}")
+
+
+def _do_import_follows(args: argparse.Namespace) -> None:
+    if args.file:
+        text = args.file.read_text(encoding="utf-8")
+    else:
+        print("Paste the copied 'Interests > Companies' text, then press Ctrl-D:")
+        text = sys.stdin.read()
+    names = intake.parse_followed_companies(text)
+    if not names:
+        print("No company names recognized in the pasted text — nothing written.")
+        return
+    written = intake.append_follows(args.data_root, args.profile_id, names)
+    print(f"Wrote {written} follow rows for {args.profile_id} to "
+          f"{args.data_root / 'follows.csv'}:")
+    for name in names:
+        print(f"  {name}")
+    print("hq_country is blank on new rows — fill it in before screening.")
+
 
 def main(argv: list[str] | None = None) -> int:
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
@@ -84,7 +127,30 @@ def main(argv: list[str] | None = None) -> int:
     _add_collect_args(p_run)
     _add_screen_args(p_run)
 
+    p_add = sub.add_parser("add-employee", help="record one tracked employee (manual workflow)")
+    p_add.add_argument("--fund", required=True, help="fund linkedin_slug from funds.yaml")
+    p_add.add_argument("--profile-id", required=True, help="profile slug (linkedin.com/in/<slug>)")
+    p_add.add_argument("--name", required=True)
+    p_add.add_argument("--title", default="")
+    p_add.add_argument("--data-root", type=Path, default=DEFAULT_MANUAL_ROOT)
+
+    p_imp = sub.add_parser(
+        "import-follows",
+        help="parse pasted 'Interests > Companies' text into follows.csv (manual workflow)",
+    )
+    p_imp.add_argument("--profile-id", required=True, help="employee the follows belong to")
+    p_imp.add_argument("--file", type=Path, default=None, help="read pasted text from a file instead of stdin")
+    p_imp.add_argument("--data-root", type=Path, default=DEFAULT_MANUAL_ROOT)
+
     args = parser.parse_args(argv)
+
+    if args.command == "add-employee":
+        _do_add_employee(args)
+        return 0
+    if args.command == "import-follows":
+        _do_import_follows(args)
+        return 0
+
     store = Store(args.db)
     try:
         if args.command in ("collect", "run"):

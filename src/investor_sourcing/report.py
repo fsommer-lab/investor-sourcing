@@ -5,7 +5,7 @@ from __future__ import annotations
 import csv
 from pathlib import Path
 
-from .models import ScoredCompany
+from .models import Company, ScoredCompany
 
 
 def write_csv(results: list[ScoredCompany], path: Path) -> None:
@@ -41,6 +41,17 @@ def write_csv(results: list[ScoredCompany], path: Path) -> None:
                     "; ".join(f"{e.name} ({e.fund_slug})" for e in r.followers),
                 ]
             )
+
+
+def write_needs_country(companies: list[Company], path: Path) -> None:
+    """Companies skipped by the geography screen because hq_country is
+    blank or unrecognized — the enrichment worklist."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", newline="", encoding="utf-8") as fh:
+        writer = csv.writer(fh)
+        writer.writerow(["company_id", "company", "hq_country_raw"])
+        for c in sorted(companies, key=lambda c: c.name.lower()):
+            writer.writerow([c.company_id, c.name, c.hq_country])
 
 
 def write_markdown(results: list[ScoredCompany], path: Path) -> None:
