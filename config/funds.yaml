@@ -1,0 +1,18 @@
+# Competitor funds whose employees we track.
+#
+# linkedin_slug: the slug in linkedin.com/company/<slug>
+# roles_include: only keep employees whose title matches one of these
+#   substrings (case-insensitive). Empty list = keep everyone.
+funds:
+  - name: Example Growth Partners
+    linkedin_slug: example-growth-partners
+    roles_include:
+      - partner
+      - principal
+      - vice president
+      - associate
+      - investor
+
+  # - name: Another Fund
+  #   linkedin_slug: another-fund
+  #   roles_include: []

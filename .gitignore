@@ -1,0 +1,11 @@
+# Collected data and reports stay local
+data/cache.db
+data/manual/
+output/
+
+__pycache__/
+*.pyc
+*.egg-info/
+.venv/
+build/
+dist/

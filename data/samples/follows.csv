@@ -1,0 +1,8 @@
+profile_id,company_id,company_name,hq_country,employee_count,industry,description,website
+jane-doe-123,acme-analytics,Acme Analytics,DE,120,Software,B2B analytics platform for logistics,https://acme-analytics.example
+jane-doe-123,google,Google,US,180000,Internet,Search engine,https://google.com
+john-smith-456,acme-analytics,Acme Analytics,DE,120,Software,B2B analytics platform for logistics,https://acme-analytics.example
+john-smith-456,tlv-secure,TLV Secure,IL,85,Cybersecurity,Cloud security posture management,https://tlvsecure.example
+ava-cohen-789,tlv-secure,TLV Secure,IL,85,Cybersecurity,Cloud security posture management,https://tlvsecure.example
+ava-cohen-789,paris-fintech,Paris Fintech,FR,40,Financial Services,SMB invoicing and payments,https://parisfintech.example
+ava-cohen-789,nyc-startup,NYC Startup,US,60,Software,US-based SaaS,https://nycstartup.example

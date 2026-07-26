@@ -1,0 +1,41 @@
+# Screening filters applied to followed companies.
+#
+# Geography (Europe + Israel) is always enforced by the pipeline itself;
+# everything below narrows the result further. All keys are optional —
+# an absent key means "no constraint". This file is where the additional
+# filters go once defined.
+
+# Signal thresholds ---------------------------------------------------------
+# Minimum number of tracked employees following a company before it appears
+# in the report at all.
+min_followers: 1
+
+# Minimum number of distinct funds with at least one employee following.
+min_funds: 1
+
+# Company attributes --------------------------------------------------------
+# employee_count:
+#   min: 22
+#   max: 500
+
+# industries_include: []      # substring match, case-insensitive
+# industries_exclude: []
+
+# keywords_include: []        # matched against company name + description
+# keywords_exclude: []
+
+# Noise suppression ---------------------------------------------------------
+# Companies everyone follows regardless of deal intent.
+exclude_companies:
+  - google
+  - microsoft
+  - amazon
+  - apple
+  - meta
+  - openai
+  - anthropic
+  - mckinsey-and-company
+  - goldman-sachs
+
+# Optional: exclude a fund's own portfolio companies (slugs).
+# exclude_portfolio: []
