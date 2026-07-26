@@ -38,4 +38,7 @@ def passes_filters(company: Company, filters: Filters) -> bool:
     if filters.keywords_exclude and _matches_any(text, filters.keywords_exclude):
         return False
 
+    if filters.funding_profile and company.funding_status != filters.funding_profile:
+        return False
+
     return True

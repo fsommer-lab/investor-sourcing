@@ -10,9 +10,11 @@ employees.csv
 
 follows.csv
     profile_id,company_id,company_name,hq_country,employee_count,industry,description,website
+    (optional extra columns: ownership_status,total_funding_usd,latest_round)
 
 Only fund_slug/profile_id/name and profile_id/company_id/company_name are
-required; the remaining company columns are optional enrichment.
+required; the remaining company columns are optional enrichment — they can
+also be filled later via `investor-sourcing enrich` (Grata).
 """
 
 from __future__ import annotations
@@ -52,6 +54,7 @@ class CsvProvider:
                 if row["profile_id"].strip() != employee.profile_id:
                     continue
                 raw_count = (row.get("employee_count") or "").strip()
+                raw_funding = (row.get("total_funding_usd") or "").strip()
                 company = Company(
                     company_id=row["company_id"].strip(),
                     name=row["company_name"].strip(),
@@ -60,6 +63,9 @@ class CsvProvider:
                     industry=(row.get("industry") or "").strip(),
                     description=(row.get("description") or "").strip(),
                     website=(row.get("website") or "").strip(),
+                    ownership_status=(row.get("ownership_status") or "").strip(),
+                    total_funding_usd=int(raw_funding) if raw_funding else None,
+                    latest_round=(row.get("latest_round") or "").strip(),
                 )
                 yield company, Follow(
                     profile_id=employee.profile_id, company_id=company.company_id

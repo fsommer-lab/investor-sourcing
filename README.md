@@ -4,23 +4,42 @@ Screens employees of competitor funds and surfaces the **European and
 Israeli companies they follow**. A company followed by several investors
 across several competitor funds is a sourcing signal worth a look.
 
+The target workflow — *"tell me 10 bootstrapped vertical marketplaces"*:
+
+```bash
+investor-sourcing query --keywords "marketplace" --funding bootstrapped --limit 10
+```
+
+...which screens the follow data of tracked competitor-fund employees for
+European/Israeli companies matching the category, cross-checked against
+**Grata** funding data to confirm they are actually bootstrapped.
+
 ## How it works
 
 ```
-config/funds.yaml            config/filters.yaml
-      |                             |
-      v                             v
-  [collect] --provider--> SQLite cache --[screen]--> output/screened_companies.{csv,md}
+config/funds.yaml                        config/filters.yaml + query flags
+      |                                            |
+      v                                            v
+  [collect] --provider--> SQLite cache --[screen/query]--> output/*.csv
+                              ^
+                              |
+                          [enrich]  <-- Grata API (country, headcount,
+                                        industry, ownership, funding)
 ```
 
 1. **collect** — for each fund in `config/funds.yaml`, pull its employees
    (filtered to investing roles via `roles_include`), then each employee's
    followed companies. Everything lands in a local SQLite cache
    (`data/cache.db`), so runs are incremental.
-2. **screen** — from the cache, keep companies headquartered in Europe or
-   Israel, apply the filters in `config/filters.yaml`, and rank by how many
-   tracked investors follow each company and across how many distinct funds.
-3. **report** — CSV + Markdown in `output/`.
+2. **enrich** — fill in HQ country, headcount, industry, description, and
+   ownership/funding for cached companies via the Grata API
+   (`export GRATA_API_KEY=...`). Blank fields never overwrite existing
+   data, so enrichment and manual research compose safely.
+3. **screen / query** — from the cache, keep companies headquartered in
+   Europe or Israel, apply the filters in `config/filters.yaml` (plus any
+   per-query flags), and rank by how many tracked investors follow each
+   company and across how many distinct funds.
+4. **report** — CSV + Markdown in `output/`.
 
 Because screening runs off the cache, you can iterate on filters without
 re-collecting.
@@ -35,7 +54,13 @@ investor-sourcing run --provider csv --data-root data/samples
 
 # Or stage by stage:
 investor-sourcing collect --provider csv --data-root data/manual
+export GRATA_API_KEY=...       # from your Grata workspace settings
+investor-sourcing enrich       # funding + firmographics cross-check
 investor-sourcing screen
+
+# Thesis queries against the enriched cache:
+investor-sourcing query --keywords "marketplace" --funding bootstrapped --limit 10
+investor-sourcing query --industries "cybersecurity" --funding funded --limit 20
 ```
 
 ### Manual research workflow (account-safe)

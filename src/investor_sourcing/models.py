@@ -42,6 +42,8 @@ class Company:
     company_id is the provider's stable identifier (LinkedIn company slug
     where available). hq_country should be an ISO 3166-1 alpha-2 code;
     the geography screen normalizes common country names as a fallback.
+
+    Funding fields are filled by Grata enrichment, not by follow data.
     """
 
     company_id: str
@@ -51,6 +53,23 @@ class Company:
     industry: str = ""
     description: str = ""
     website: str = ""
+    ownership_status: str = ""
+    total_funding_usd: int | None = None
+    latest_round: str = ""
+    grata_uid: str = ""
+
+    @property
+    def funding_status(self) -> str:
+        """'bootstrapped' | 'funded' | 'unknown', derived from Grata data."""
+        status = self.ownership_status.lower()
+        if "bootstrap" in status:
+            return "bootstrapped"
+        if status in {"investor_backed", "investor backed", "private_equity",
+                      "private equity", "public", "venture_capital"}:
+            return "funded"
+        if self.total_funding_usd:
+            return "funded"
+        return "unknown"
 
 
 @dataclass(frozen=True)

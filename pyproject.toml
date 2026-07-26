@@ -5,6 +5,7 @@ description = "Screen employees of competitor funds and surface the European/Isr
 requires-python = ">=3.10"
 dependencies = [
     "pyyaml>=6.0",
+    "requests>=2.31",
 ]
 
 [project.scripts]

@@ -15,13 +15,17 @@ CREATE TABLE IF NOT EXISTS employees (
     fund_slug  TEXT NOT NULL
 );
 CREATE TABLE IF NOT EXISTS companies (
-    company_id     TEXT PRIMARY KEY,
-    name           TEXT NOT NULL,
-    hq_country     TEXT NOT NULL DEFAULT '',
-    employee_count INTEGER,
-    industry       TEXT NOT NULL DEFAULT '',
-    description    TEXT NOT NULL DEFAULT '',
-    website        TEXT NOT NULL DEFAULT ''
+    company_id        TEXT PRIMARY KEY,
+    name              TEXT NOT NULL,
+    hq_country        TEXT NOT NULL DEFAULT '',
+    employee_count    INTEGER,
+    industry          TEXT NOT NULL DEFAULT '',
+    description       TEXT NOT NULL DEFAULT '',
+    website           TEXT NOT NULL DEFAULT '',
+    ownership_status  TEXT NOT NULL DEFAULT '',
+    total_funding_usd INTEGER,
+    latest_round      TEXT NOT NULL DEFAULT '',
+    grata_uid         TEXT NOT NULL DEFAULT ''
 );
 CREATE TABLE IF NOT EXISTS follows (
     profile_id TEXT NOT NULL REFERENCES employees(profile_id),
@@ -30,12 +34,34 @@ CREATE TABLE IF NOT EXISTS follows (
 );
 """
 
+# Columns added after the first release; older caches get them via ALTER.
+_COMPANY_MIGRATIONS = {
+    "ownership_status": "TEXT NOT NULL DEFAULT ''",
+    "total_funding_usd": "INTEGER",
+    "latest_round": "TEXT NOT NULL DEFAULT ''",
+    "grata_uid": "TEXT NOT NULL DEFAULT ''",
+}
+
+_COMPANY_COLUMNS = (
+    "company_id", "name", "hq_country", "employee_count", "industry",
+    "description", "website", "ownership_status", "total_funding_usd",
+    "latest_round", "grata_uid",
+)
+
 
 class Store:
     def __init__(self, path: Path):
         path.parent.mkdir(parents=True, exist_ok=True)
         self.conn = sqlite3.connect(path)
         self.conn.executescript(SCHEMA)
+        self._migrate()
+
+    def _migrate(self) -> None:
+        existing = {row[1] for row in self.conn.execute("PRAGMA table_info(companies)")}
+        for column, decl in _COMPANY_MIGRATIONS.items():
+            if column not in existing:
+                self.conn.execute(f"ALTER TABLE companies ADD COLUMN {column} {decl}")
+        self.conn.commit()
 
     def close(self) -> None:
         self.conn.close()
@@ -49,13 +75,26 @@ class Store:
         )
 
     def upsert_company(self, c: Company) -> None:
+        # Blank/NULL incoming values never overwrite existing data, so a
+        # re-collect from sparse CSVs cannot wipe out Grata enrichment.
         self.conn.execute(
-            "INSERT INTO companies (company_id, name, hq_country, employee_count, industry, description, website) "
-            "VALUES (?,?,?,?,?,?,?) "
-            "ON CONFLICT(company_id) DO UPDATE SET name=excluded.name, "
-            "hq_country=excluded.hq_country, employee_count=excluded.employee_count, "
-            "industry=excluded.industry, description=excluded.description, website=excluded.website",
-            (c.company_id, c.name, c.hq_country, c.employee_count, c.industry, c.description, c.website),
+            "INSERT INTO companies (company_id, name, hq_country, employee_count, "
+            "industry, description, website, ownership_status, total_funding_usd, "
+            "latest_round, grata_uid) VALUES (?,?,?,?,?,?,?,?,?,?,?) "
+            "ON CONFLICT(company_id) DO UPDATE SET "
+            "name=COALESCE(NULLIF(excluded.name,''), companies.name), "
+            "hq_country=COALESCE(NULLIF(excluded.hq_country,''), companies.hq_country), "
+            "employee_count=COALESCE(excluded.employee_count, companies.employee_count), "
+            "industry=COALESCE(NULLIF(excluded.industry,''), companies.industry), "
+            "description=COALESCE(NULLIF(excluded.description,''), companies.description), "
+            "website=COALESCE(NULLIF(excluded.website,''), companies.website), "
+            "ownership_status=COALESCE(NULLIF(excluded.ownership_status,''), companies.ownership_status), "
+            "total_funding_usd=COALESCE(excluded.total_funding_usd, companies.total_funding_usd), "
+            "latest_round=COALESCE(NULLIF(excluded.latest_round,''), companies.latest_round), "
+            "grata_uid=COALESCE(NULLIF(excluded.grata_uid,''), companies.grata_uid)",
+            (c.company_id, c.name, c.hq_country, c.employee_count, c.industry,
+             c.description, c.website, c.ownership_status, c.total_funding_usd,
+             c.latest_round, c.grata_uid),
         )
 
     def upsert_follow(self, f: Follow) -> None:
@@ -75,8 +114,7 @@ class Store:
 
     def companies(self) -> list[Company]:
         rows = self.conn.execute(
-            "SELECT company_id, name, hq_country, employee_count, industry, description, website "
-            "FROM companies"
+            f"SELECT {', '.join(_COMPANY_COLUMNS)} FROM companies"
         ).fetchall()
         return [Company(*row) for row in rows]
 

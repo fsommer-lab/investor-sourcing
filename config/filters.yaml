@@ -13,6 +13,12 @@ min_followers: 1
 # Minimum number of distinct funds with at least one employee following.
 min_funds: 1
 
+# Funding profile ------------------------------------------------------------
+# '' (any) | 'bootstrapped' | 'funded' — derived from Grata ownership/funding
+# data after running `investor-sourcing enrich`. Usually set per-query via
+# `investor-sourcing query --funding bootstrapped` rather than globally here.
+# funding_profile: ''
+
 # Company attributes --------------------------------------------------------
 # employee_count:
 #   min: 22

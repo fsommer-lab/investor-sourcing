@@ -24,6 +24,8 @@ class Filters:
     keywords_exclude: list[str] = field(default_factory=list)
     exclude_companies: list[str] = field(default_factory=list)
     exclude_portfolio: list[str] = field(default_factory=list)
+    # '' = any; 'bootstrapped' or 'funded' filter on Grata-derived status.
+    funding_profile: str = ""
 
 
 def load_funds(path: Path | None = None) -> list[Fund]:
@@ -60,4 +62,5 @@ def load_filters(path: Path | None = None) -> Filters:
         keywords_exclude=list(raw.get("keywords_exclude") or []),
         exclude_companies=[s.lower() for s in raw.get("exclude_companies") or []],
         exclude_portfolio=[s.lower() for s in raw.get("exclude_portfolio") or []],
+        funding_profile=str(raw.get("funding_profile") or "").lower(),
     )

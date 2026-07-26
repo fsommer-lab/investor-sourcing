@@ -3,8 +3,10 @@
     investor-sourcing add-employee   --fund <slug> --profile-id <id> --name <name> [--title <title>]
     investor-sourcing import-follows --profile-id <id> [--file paste.txt]   # or paste via stdin
     investor-sourcing collect --provider csv [--data-root data/manual]
+    investor-sourcing enrich          # fill country/headcount/funding via Grata (GRATA_API_KEY)
     investor-sourcing screen  [--out output/]
     investor-sourcing run     # collect + screen in one go
+    investor-sourcing query --keywords marketplace --funding bootstrapped --limit 10
 """
 
 from __future__ import annotations
@@ -80,6 +82,70 @@ def _do_screen(args: argparse.Namespace, store: Store) -> None:
               "and re-run collect + screen.")
 
 
+def _do_enrich(args: argparse.Namespace, store: Store) -> None:
+    from .grata import GrataClient, GrataError
+
+    try:
+        client = GrataClient()
+    except GrataError as exc:
+        print(exc)
+        raise SystemExit(1)
+    companies = store.companies()
+    todo = [
+        c for c in companies
+        if args.all or not (c.hq_country and c.ownership_status)
+    ]
+    print(f"Enriching {len(todo)} of {len(companies)} cached companies via Grata...")
+    hits = 0
+    for company in todo:
+        enriched = client.enrich(company)
+        if enriched is None:
+            print(f"  not found: {company.name}")
+            continue
+        store.upsert_company(enriched)
+        hits += 1
+        print(f"  {enriched.name:<35} {enriched.hq_country:<3} "
+              f"funding={enriched.funding_status}")
+    store.commit()
+    print(f"Enriched {hits}/{len(todo)}.")
+
+
+def _do_query(args: argparse.Namespace, store: Store) -> None:
+    import dataclasses
+
+    filters = config.load_filters(args.filters)
+    overrides = {}
+    if args.keywords:
+        overrides["keywords_include"] = [k.strip() for k in args.keywords.split(",")]
+    if args.industries:
+        overrides["industries_include"] = [k.strip() for k in args.industries.split(",")]
+    if args.funding:
+        overrides["funding_profile"] = args.funding
+    filters = dataclasses.replace(filters, **overrides)
+
+    results = pipeline.screen(store, filters)
+    unknown_funding = 0
+    if args.funding:
+        relaxed = dataclasses.replace(filters, funding_profile="")
+        unknown_funding = sum(
+            1 for r in pipeline.screen(store, relaxed)
+            if r.company.funding_status == "unknown"
+        )
+
+    top = results[: args.limit]
+    report.write_csv(top, args.out / "query_results.csv")
+    print(f"Top {len(top)} matches (of {len(results)} passing) -> {args.out}/query_results.csv\n")
+    for r in top:
+        funding = r.company.funding_status
+        print(f"  {r.company.name:<35} {r.company.hq_country:<3} "
+              f"followers={r.follower_count} funds={r.fund_count} funding={funding}")
+        if r.company.description:
+            print(f"      {r.company.description[:100]}")
+    if unknown_funding:
+        print(f"\nNote: {unknown_funding} otherwise-matching companies have unknown "
+              f"funding status — run `investor-sourcing enrich` to classify them.")
+
+
 def _do_add_employee(args: argparse.Namespace) -> None:
     employee = Employee(
         profile_id=args.profile_id,
@@ -127,6 +193,24 @@ def main(argv: list[str] | None = None) -> int:
     _add_collect_args(p_run)
     _add_screen_args(p_run)
 
+    p_enrich = sub.add_parser("enrich", help="fill country/headcount/funding data via Grata")
+    _add_common(p_enrich)
+    p_enrich.add_argument("--all", action="store_true",
+                          help="re-enrich every company, not just those missing data")
+
+    p_query = sub.add_parser(
+        "query",
+        help="ad-hoc thesis screen, e.g. --keywords marketplace --funding bootstrapped --limit 10",
+    )
+    _add_common(p_query)
+    _add_screen_args(p_query)
+    p_query.add_argument("--keywords", default="",
+                         help="comma-separated, matched against name+description")
+    p_query.add_argument("--industries", default="", help="comma-separated industry substrings")
+    p_query.add_argument("--funding", default="", choices=["", "bootstrapped", "funded"],
+                         help="require a Grata-derived funding status")
+    p_query.add_argument("--limit", type=int, default=10)
+
     p_add = sub.add_parser("add-employee", help="record one tracked employee (manual workflow)")
     p_add.add_argument("--fund", required=True, help="fund linkedin_slug from funds.yaml")
     p_add.add_argument("--profile-id", required=True, help="profile slug (linkedin.com/in/<slug>)")
@@ -157,6 +241,10 @@ def main(argv: list[str] | None = None) -> int:
             _do_collect(args, store)
         if args.command in ("screen", "run"):
             _do_screen(args, store)
+        if args.command == "enrich":
+            _do_enrich(args, store)
+        if args.command == "query":
+            _do_query(args, store)
     finally:
         store.close()
     return 0
